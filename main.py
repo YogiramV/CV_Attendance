@@ -122,7 +122,7 @@ class FaceRecognition:
 
                 self.face_names = []
                 for face_encoding in self.face_encodings:
-                    matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding)
+                    matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding, tolerance=0.5)
                     name = 'Unknown'
                     confidence = 'Unknown'
 
