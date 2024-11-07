@@ -5,8 +5,10 @@ import numpy as np
 import sqlite3
 import pandas as pd
 from mtcnn import MTCNN  # Import MTCNN for face detection
+from datetime import datetime
 
 
+# Function to calculate confidence
 def face_confidence(face_distance, face_match_threshold=0.6):
     range_val = (1.0 - face_match_threshold)
     linear_val = (1.0 - face_distance) / (range_val * 2.0)
@@ -23,19 +25,48 @@ def initialize_database():
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
 
-    # Create a table if it doesn't already exist
+    # Create the table if it doesn't exist
     c.execute('''
     CREATE TABLE IF NOT EXISTS attendance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        period_1 INTEGER DEFAULT 0,
+        period_2 INTEGER DEFAULT 0,
+        period_3 INTEGER DEFAULT 0,
+        period_4 INTEGER DEFAULT 0,
+        period_5 INTEGER DEFAULT 0,
+        period_6 INTEGER DEFAULT 0,
+        period_7 INTEGER DEFAULT 0,
+        period_8 INTEGER DEFAULT 0,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
     ''')
+
+    # Insert known students with default attendance (absent) for all periods
+    known_students = os.listdir('Faces')
+    for student_image in known_students:
+        # Remove file extension to get the name
+        student_name = student_image.split('.')[0]
+
+        # Check if the student is already in the database
+        c.execute('''
+        SELECT * FROM attendance WHERE name = ?
+        ''', (student_name,))
+        existing_record = c.fetchone()
+
+        # Insert only if the student is not already in the database
+        if not existing_record:
+            c.execute('''
+            INSERT INTO attendance (name)
+            VALUES (?)
+            ''', (student_name,))
+            print(f"Inserted {student_name} into the database.")
 
     conn.commit()
     conn.close()
 
 
+# Function to export data to Excel
 def export_to_excel():
     try:
         conn = sqlite3.connect('attendance.db')
@@ -44,14 +75,14 @@ def export_to_excel():
 
         if not df.empty:  # Check if DataFrame is not empty
             df.to_excel('final.xlsx', index=False)
-            print("Attendance exported to final_attendance.xlsx successfully.")
+            print("Attendance exported to final.xlsx successfully.")
         else:
             print("No attendance records to export.")
-
     except Exception as e:
         print("Error while exporting to Excel:", str(e))
 
 
+# Face Recognition class
 class FaceRecognition:
     def __init__(self):
         self.face_locations = []
@@ -76,39 +107,56 @@ class FaceRecognition:
 
         print("Known faces:", self.known_face_names)
 
-    def is_name_logged_in_excel(self, name):
-        try:
-            df = pd.read_excel('final_attendance.xlsx')
-            return name in df['name'].values
-        except FileNotFoundError:
-            return False
-        except Exception as e:
-            print("Error reading Excel file:", str(e))
-            return False
+    def get_current_period(self):
+        """Function to return the current period (1-8 based on time)."""
+        hour = datetime.now().hour
+        if 8 <= hour < 9:
+            return 1
+        elif 9 <= hour < 10:
+            return 2
+        elif 10 <= hour < 11:
+            return 3
+        elif 11 <= hour < 12:
+            return 4
+        elif 12 <= hour < 13:
+            return 5
+        elif 13 <= hour < 14:
+            return 6
+        elif 14 <= hour < 15:
+            return 7
+        elif 15 <= hour < 16:
+            return 8
+        else:
+            return None  # Outside school hours, no period.
 
     def log_attendance(self, name):
+        period = self.get_current_period()  # Get the current period
+        if not period:
+            print("Outside school hours. Attendance not logged.")
+            return
+
         conn = sqlite3.connect('attendance.db')
         c = conn.cursor()
 
-        # Check if the name is already logged in the Excel file
-        if self.is_name_logged_in_excel(name):
-            print(f"{name} has already been logged in the Excel file.")
-            conn.close()
-            return  # Exit the method if the name is already logged
-
-        # Check for existing attendance records
+        # Check if the name is already logged today for the current period
         c.execute(
             "SELECT * FROM attendance WHERE name=? AND timestamp >= datetime('now', 'localtime', 'start of day')", (name,))
         existing_record = c.fetchone()
 
-        # Log attendance only if the name is not already recorded today
-        if existing_record is None:
-            c.execute("INSERT INTO attendance (name) VALUES (?)", (name,))
-            conn.commit()
-            print(f"Attendance logged for {name}.")
+        if existing_record:
+            # If the student is already present today, just mark their attendance for the current period
+            period_column = f"period_{period}"
+            c.execute(f"UPDATE attendance SET {
+                      period_column} = 1 WHERE name=? AND timestamp >= datetime('now', 'localtime', 'start of day')", (name,))
+            print(f"Attendance marked for {name} in Period {period}.")
         else:
-            print(f"Attendance for {name} already logged.")
+            # If no record for the student today, create a new record with attendance for the current period
+            period_column = f"period_{period}"
+            c.execute(f"INSERT INTO attendance (name, {
+                      period_column}) VALUES (?, 1)", (name,))
+            print(f"Attendance logged for {name} in Period {period}.")
 
+        conn.commit()
         conn.close()
 
         # Call export_to_excel() after logging attendance
