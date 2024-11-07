@@ -7,8 +7,9 @@ import pandas as pd
 from mtcnn import MTCNN  # Import MTCNN for face detection
 from datetime import datetime
 
-
 # Function to calculate confidence
+
+
 def face_confidence(face_distance, face_match_threshold=0.6):
     range_val = (1.0 - face_match_threshold)
     linear_val = (1.0 - face_distance) / (range_val * 2.0)
@@ -162,6 +163,41 @@ class FaceRecognition:
         # Call export_to_excel() after logging attendance
         export_to_excel()  # Export attendance to Excel each time a name is logged
 
+    def scan_photo(self, photo_path):
+        """Function to scan a given photo for face recognition."""
+        print(f"Scanning photo: {photo_path}")
+
+        # Load the photo to be scanned
+        image = face_recognition.load_image_file(photo_path)
+
+        # Find all faces in the image
+        face_locations = face_recognition.face_locations(image)
+        face_encodings = face_recognition.face_encodings(image, face_locations)
+
+        if not face_encodings:
+            print("No faces found in the image.")
+            return
+
+        # Compare the faces found in the image with the known faces
+        for face_encoding in face_encodings:
+            matches = face_recognition.compare_faces(
+                self.known_face_encodings, face_encoding, tolerance=0.5)
+            name = 'Unknown'
+            confidence = 'Unknown'
+
+            face_distances = face_recognition.face_distance(
+                self.known_face_encodings, face_encoding)
+            best_match_index = np.argmin(face_distances)
+
+            if matches[best_match_index]:
+                name = self.known_face_names[best_match_index]
+                confidence = face_confidence(face_distances[best_match_index])
+                # Log attendance for recognized students
+                self.log_attendance(name)
+                print(f"Recognized {name} with confidence: {confidence}")
+            else:
+                print("No known faces recognized.")
+
     def run_recognition(self):
         video_capture = cv2.VideoCapture(0)
 
@@ -245,4 +281,5 @@ class FaceRecognition:
 if __name__ == '__main__':
     initialize_database()  # Initialize the database
     fr = FaceRecognition()
-    fr.run_recognition()
+    # fr.run_recognition()
+    fr.scan_photo('Group/group_photo.jpg')
