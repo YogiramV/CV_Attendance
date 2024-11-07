@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import sqlite3
 import pandas as pd
+from mtcnn import MTCNN  # Import MTCNN for face detection
+
 
 def face_confidence(face_distance, face_match_threshold=0.6):
     range_val = (1.0 - face_match_threshold)
@@ -12,8 +14,10 @@ def face_confidence(face_distance, face_match_threshold=0.6):
     if face_distance > face_match_threshold:
         return str(round(linear_val * 100, 2)) + '%'
     else:
-        value = (linear_val + ((1.0 - linear_val) + (linear_val - 0.5) ** 2)) * 100
+        value = (linear_val + ((1.0 - linear_val) +
+                 (linear_val - 0.5) ** 2)) * 100
         return str(round(value, 2)) + '%'
+
 
 def initialize_database():
     conn = sqlite3.connect('attendance.db')
@@ -31,6 +35,7 @@ def initialize_database():
     conn.commit()
     conn.close()
 
+
 def export_to_excel():
     try:
         conn = sqlite3.connect('attendance.db')
@@ -46,6 +51,7 @@ def export_to_excel():
     except Exception as e:
         print("Error while exporting to Excel:", str(e))
 
+
 class FaceRecognition:
     def __init__(self):
         self.face_locations = []
@@ -56,13 +62,17 @@ class FaceRecognition:
         self.process_current_frame = True
         self.encode_faces()
 
+        # Initialize MTCNN for face detection
+        self.mtcnn_detector = MTCNN()
+
     def encode_faces(self):
         for image in os.listdir('Faces'):
             face_image = face_recognition.load_image_file(f'Faces/{image}')
             face_encoding = face_recognition.face_encodings(face_image)[0]
 
             self.known_face_encodings.append(face_encoding)
-            self.known_face_names.append(image.split('.')[0])  # Store names without file extension
+            # Store names without file extension
+            self.known_face_names.append(image.split('.')[0])
 
         print("Known faces:", self.known_face_names)
 
@@ -87,7 +97,8 @@ class FaceRecognition:
             return  # Exit the method if the name is already logged
 
         # Check for existing attendance records
-        c.execute("SELECT * FROM attendance WHERE name=? AND timestamp >= datetime('now', 'localtime', 'start of day')", (name,))
+        c.execute(
+            "SELECT * FROM attendance WHERE name=? AND timestamp >= datetime('now', 'localtime', 'start of day')", (name,))
         existing_record = c.fetchone()
 
         # Log attendance only if the name is not already recorded today
@@ -114,47 +125,74 @@ class FaceRecognition:
             ret, frame = video_capture.read()
 
             if self.process_current_frame:
+                # Resize frame to make processing faster
                 small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
                 rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
 
-                self.face_locations = face_recognition.face_locations(rgb_small_frame)
-                self.face_encodings = face_recognition.face_encodings(rgb_small_frame, self.face_locations)
+                # Use MTCNN to detect faces
+                results = self.mtcnn_detector.detect_faces(rgb_small_frame)
+                self.face_locations = []
+
+                for result in results:
+                    # Get the bounding box coordinates (x, y, w, h)
+                    x, y, w, h = result['box']
+                    # (top, right, bottom, left)
+                    self.face_locations.append((y, x + w, y + h, x))
+
+                self.face_encodings = face_recognition.face_encodings(
+                    rgb_small_frame, self.face_locations)
 
                 self.face_names = []
                 for face_encoding in self.face_encodings:
-                    matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding, tolerance=0.5)
+                    matches = face_recognition.compare_faces(
+                        self.known_face_encodings, face_encoding, tolerance=0.5)
                     name = 'Unknown'
                     confidence = 'Unknown'
 
-                    face_distances = face_recognition.face_distance(self.known_face_encodings, face_encoding)
+                    face_distances = face_recognition.face_distance(
+                        self.known_face_encodings, face_encoding)
                     best_match_index = np.argmin(face_distances)
 
                     if matches[best_match_index]:
                         name = self.known_face_names[best_match_index]
-                        confidence = face_confidence(face_distances[best_match_index])
-                        self.log_attendance(name)  # Log attendance for recognized students
+                        confidence = face_confidence(
+                            face_distances[best_match_index])
+                        # Log attendance for recognized students
+                        self.log_attendance(name)
 
                     self.face_names.append(f'{name} ({confidence})')
 
             self.process_current_frame = not self.process_current_frame
 
+            # Draw bounding boxes and names for each detected face
             for (top, right, bottom, left), name in zip(self.face_locations, self.face_names):
                 top *= 4
                 right *= 4
                 bottom *= 4
                 left *= 4
 
-                cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-                cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), -1)
-                cv2.putText(frame, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.8, (255, 255, 255), 1)
+                # Draw rectangle around face
+                cv2.rectangle(frame, (left, top),
+                              (right, bottom), (0, 0, 255), 2)
 
+                # Draw rectangle for name tag
+                cv2.rectangle(frame, (left, bottom - 35),
+                              (right, bottom), (0, 0, 255), -1)
+
+                # Put name and confidence text
+                cv2.putText(frame, name, (left + 6, bottom - 6),
+                            cv2.FONT_HERSHEY_DUPLEX, 0.8, (255, 255, 255), 1)
+
+            # Show the video with the face bounding boxes
             cv2.imshow('Face Recognition', frame)
 
+            # Exit loop on 'q' key press
             if cv2.waitKey(1) == ord('q'):
                 break
 
         video_capture.release()
         cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     initialize_database()  # Initialize the database
