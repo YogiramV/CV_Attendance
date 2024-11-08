@@ -282,4 +282,4 @@ if __name__ == '__main__':
     initialize_database()  # Initialize the database
     fr = FaceRecognition()
     # fr.run_recognition()
-    fr.scan_photo('Group/group_photo.jpg')
+    fr.scan_photo('Group/group_4.jpeg')
