@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
 from io import BytesIO
 from app import process_face_recognition  # Import the refactored Streamlit function
+from image_encoder import *
 
 app = Flask(__name__)
+
+
 
 @app.route('/submit', methods=['POST'])
 def submit_data():
@@ -28,4 +31,5 @@ def submit_data():
 
 
 if __name__ == "__main__":
+    encode_faces_once()
     app.run(debug=True)
