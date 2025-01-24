@@ -3,7 +3,4 @@ opencv-python
 numpy
 pandas
 openpyxl
-tensorflow
-mtcnn
-streamlit
 flask
