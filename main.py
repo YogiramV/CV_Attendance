@@ -1,62 +1,49 @@
-import pandas as pd
-import face_recognition
-from datetime import datetime
-import numpy as np
-import pickle
+from flask import Flask, request, jsonify
+from io import BytesIO
+from handler import process_face_recognition
+from image_encoder import encode_faces_once
 import os
 
-known_face_encodings, known_face_rollnos, known_face_names = [], [], []
+app = Flask(__name__)
 
+initialized = False
 ENCODED_FACES_TIMESTAMP_FILE = "encoded_faces_timestamp.txt"
 
-def load_encodings():
-    global known_face_encodings, known_face_rollnos, known_face_names
+def deploy_initialization():
+    encode_faces_once()
+
+def check_and_initialize_encoding():
+    global initialized
+    last_encoded_time = os.path.getmtime('Faces')
+
+    if not os.path.exists(ENCODED_FACES_TIMESTAMP_FILE) or \
+       last_encoded_time > float(open(ENCODED_FACES_TIMESTAMP_FILE).read()):
+        deploy_initialization()
+        with open(ENCODED_FACES_TIMESTAMP_FILE, 'w') as f:
+            f.write(str(last_encoded_time))
+
+if not initialized:
+    check_and_initialize_encoding()
+    initialized = True
+
+@app.route('/submit', methods=['POST'])
+def submit_data():
     try:
-        if not known_face_encodings:
-            if os.path.exists('known_faces.pkl'):
-                with open('known_faces.pkl', 'rb') as f:
-                    data = pickle.load(f)
-                known_face_encodings = data['encodings']
-                known_face_rollnos = data['rollnos']
-                known_face_names = data['names']
-            else:
-                known_face_encodings, known_face_rollnos, known_face_names = [], [], []
+        print('Connected successfully')
+
+        roll_no = request.form.get('roll_no')
+        image_file = request.files.get('file')
+
+        if not roll_no or not image_file:
+            return jsonify({"error": "Missing roll number or image"}), 400
+
+        result = process_face_recognition(image_file, roll_no)
+
+        return jsonify({"result": result}), 200
+
     except Exception as e:
-        print("Error loading encodings:", str(e))
+        return jsonify({"error": str(e)}), 500
 
-    return known_face_encodings, known_face_rollnos, known_face_names
 
-def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollnos, known_face_names):
-    image = np.array(image_path) 
-    face_locations = face_recognition.face_locations(image)
-    face_encodings_in_image = face_recognition.face_encodings(image, face_locations)
-
-    if len(face_encodings_in_image) == 0:
-        return "No faces found in the image."
-
-    best_match_index = -1
-    min_distance = float('inf')
-
-    for face_encoding in face_encodings_in_image:
-        matches = face_recognition.compare_faces(known_face_encodings, face_encoding, tolerance=0.6)
-        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-
-        if len(face_distances) == 0:
-            return "No valid face encodings found."
-
-        best_match_index = np.argmin(face_distances)
-
-        if matches[best_match_index]:
-            min_distance = face_distances[best_match_index]
-
-    if best_match_index != -1 and min_distance < 0.6:
-        recognized_rollno = known_face_rollnos[best_match_index]
-        recognized_name = known_face_names[best_match_index]
-        confidence = round((1.0 - min_distance) * 100, 2)
-
-        if recognized_rollno.lower() == rollno_input.lower():
-            return True
-        else:
-            return False
-    else:
-        return "No matching face found."
+if __name__ == "__main__":
+    app.run(debug=True)

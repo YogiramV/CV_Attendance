@@ -1,4 +1,4 @@
-from main import scan_photo, load_encodings
+from action import scan_photo, load_encodings
 from PIL import Image
 import io
 
