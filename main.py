@@ -157,7 +157,7 @@ def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollno
 
 
 def get_current_period():
-    hour = datetime.now(timezone).now().hour
+    hour = datetime.now(timezone).hour
     if 8 <= hour < 9:
         return 1
     elif 9 <= hour < 10:
