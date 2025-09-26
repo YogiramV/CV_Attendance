@@ -2,8 +2,15 @@ import sqlite3
 import pandas as pd
 import face_recognition
 from datetime import datetime
+import pytz
 import numpy as np
 import pickle
+
+
+#Set Indian time
+timezone = pytz.timezone("Asia/Kolkata")
+
+
 
 # Initialize the database
 
@@ -150,7 +157,7 @@ def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollno
 
 
 def get_current_period():
-    hour = datetime.now().hour
+    hour = datetime.now(timezone).now().hour
     if 8 <= hour < 9:
         return 1
     elif 9 <= hour < 10:
