@@ -5,6 +5,7 @@ from datetime import datetime
 import pytz
 import numpy as np
 import pickle
+import os
 
 
 timezone = pytz.timezone("Asia/Kolkata")
@@ -83,6 +84,9 @@ def load_encodings():
         known_face_encodings = data['encodings']
         known_face_rollnos = data['rollnos']
         known_face_names = data['names']
+        
+        # Convert back to numpy array for face recognition
+        known_face_encodings = [np.array(enc) for enc in known_face_encodings]
         return known_face_encodings, known_face_rollnos, known_face_names
     except Exception as e:
         print("Error loading encodings:", str(e))
@@ -99,11 +103,29 @@ def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollno
     if len(face_encodings_in_image) == 0:
         return "No faces found in the image."
 
+    # Load the PCA model if it exists
+    pca = None
+    if os.path.exists('pca_model.pkl'):
+        with open('pca_model.pkl', 'rb') as f:
+            pca = pickle.load(f)
+
     for face_encoding in face_encodings_in_image:
-        matches = face_recognition.compare_faces(
-            known_face_encodings, face_encoding, tolerance=0.6)
-        face_distances = face_recognition.face_distance(
-            known_face_encodings, face_encoding)
+        # Apply PCA transformation if PCA model exists
+        if pca is not None:
+            face_encoding = pca.transform([face_encoding])[0]
+            
+        # Convert to numpy array for comparison
+        face_encoding = np.array(face_encoding)
+        
+        # Calculate distances to all known faces
+        face_distances = [np.linalg.norm(np.array(known_enc) - face_encoding) 
+                         for known_enc in known_face_encodings]
+        
+        if not face_distances:  # If no known faces to compare with
+            return "No known faces to compare with."
+            
+        best_match_index = np.argmin(face_distances)
+        matches = [d <= 0.6 for d in face_distances]  # 0.6 is the threshold for a match
 
         if len(face_distances) == 0:
             return "No valid face encodings found."
