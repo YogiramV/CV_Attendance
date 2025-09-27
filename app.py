@@ -1,8 +1,13 @@
 import streamlit as st
+import pandas as pd
 from main import initialize_database, scan_photo, load_encodings
-from image_encoder import encode_faces_once  # Import the encoding function
+from image_encoder import encode_faces_once
 from PIL import Image
 import io
+import os
+
+# Path to the local Excel file (replace with your actual file name)
+ATTENDANCE_FILE = "attendance_data.xlsx"  # Replace with your actual file name
 
 # Streamlit app UI
 
@@ -45,6 +50,19 @@ def app():
 
         # Display the result in Streamlit
         st.write(result)
+
+    # Button to display attendance (from the local file)
+    if st.button("Show Attendance Records"):
+        # Check if the attendance file exists in the current folder
+        if os.path.exists(ATTENDANCE_FILE):
+            # Read the Excel file into a DataFrame
+            df = pd.read_excel(ATTENDANCE_FILE)
+
+            # Simulate a pop-up with the attendance data
+            with st.expander("Attendance Records"):
+                st.dataframe(df)  # Display the content of the attendance file
+        else:
+            st.error(f"Attendance file '{ATTENDANCE_FILE}' not found!")
 
 
 if __name__ == "__main__":
