@@ -25,20 +25,15 @@ def encode_faces_once():
             known_face_rollnos.append(rollno)
             known_face_names.append(name)
 
-    # Apply PCA to reduce dimensionality of face encodings
     if known_face_encodings:
-        # Convert to numpy array for PCA
         encodings_array = np.array(known_face_encodings)
-        
-        # Fit PCA on the encodings
-        pca = PCA(n_components=min(50, len(known_face_encodings) - 1))  # Ensure n_components is valid
+
+        pca = PCA(n_components=min(50, len(known_face_encodings) - 1))
         reduced_encodings = pca.fit_transform(encodings_array)
-        
-        # Save the PCA model for later use during recognition
+
         with open('pca_model.pkl', 'wb') as f:
             pickle.dump(pca, f)
-            
-        # Convert back to list for JSON serialization
+
         known_face_encodings = reduced_encodings.tolist()
 
     with open('known_faces.pkl', 'wb') as f:
@@ -46,4 +41,5 @@ def encode_faces_once():
                      'rollnos': known_face_rollnos,
                      'names': known_face_names}, f)
 
-    print(f"Encoded and saved {len(known_face_encodings)} faces with PCA dimensionality reduction (n_components={min(50, len(known_face_encodings) - 1)}).")
+    print(
+        f"Encoded and saved {len(known_face_encodings)} faces with PCA dimensionality reduction (n_components={min(50, len(known_face_encodings) - 1)}).")

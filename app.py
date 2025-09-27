@@ -15,26 +15,23 @@ def save_new_face(image, name, rollno):
     """Save a new face image to the Faces directory"""
     if not os.path.exists('Faces'):
         os.makedirs('Faces')
-    
-    # Ensure the filename is in the format name_rollno.jpg
+
     filename = f"{name}_{rollno}.jpg"
     filepath = os.path.join('Faces', filename)
-    
-    # Convert to RGB if necessary
+
     if image.mode != 'RGB':
         image = image.convert('RGB')
-    
-    # Save the image
+
     image.save(filepath, 'JPEG')
     return filepath
+
 
 def app():
     initialize_database()
     st.title("Face Recognition Attendance System")
-    
-    # Create tabs for different functionalities
+
     tab1, tab2 = st.tabs(["Mark Attendance", "Add New Face"])
-    
+
     with tab1:
         if st.button("Encode Faces (Update after adding new faces)"):
             encode_faces_once()
@@ -51,17 +48,14 @@ def app():
             image_bytes = captured_image.getvalue()
             img = Image.open(io.BytesIO(image_bytes))
             st.image(img, caption="Captured Image", use_container_width=True)
-            
-            # Save temporary image for processing
+
             img.save("temp_uploaded_image.jpg")
-            
-            # Process the image
+
             result = scan_photo("temp_uploaded_image.jpg", rollno_input,
-                              known_face_encodings, known_face_rollnos, known_face_names)
-            
+                                known_face_encodings, known_face_rollnos, known_face_names)
+
             st.write(result)
-            
-            # Clean up temporary file
+
             if os.path.exists("temp_uploaded_image.jpg"):
                 os.remove("temp_uploaded_image.jpg")
 
@@ -74,46 +68,51 @@ def app():
             else:
                 st.error(f"Attendance file '{ATTENDANCE_FILE}' not found!")
 
-
     with tab2:
         st.subheader("Add New Face to Database")
-        
-        # Option to choose between camera and file upload
-        add_option = st.radio("How would you like to add a face?", 
-                            ["Take a photo", "Upload an image"])
-        
+
+        add_option = st.radio("How would you like to add a face?",
+                              ["Take a photo", "Upload an image"])
+
         name = st.text_input("Enter person's name")
         rollno = st.text_input("Enter roll number")
-        
+
         if add_option == "Take a photo":
-            captured_face = st.camera_input("Take a photo of the person's face")
+            captured_face = st.camera_input(
+                "Take a photo of the person's face")
             if captured_face and name and rollno:
                 try:
                     img = Image.open(io.BytesIO(captured_face.getvalue()))
-                    st.image(img, caption="Captured Face", use_container_width=True)
-                    
+                    st.image(img, caption="Captured Face",
+                             use_container_width=True)
+
                     if st.button("Save Face"):
                         filepath = save_new_face(img, name, rollno)
                         st.success(f"Face saved successfully as {filepath}")
-                        st.info("Please click 'Encode Faces' in the 'Mark Attendance' tab to update the face encodings.")
-                        
+                        st.info(
+                            "Please click 'Encode Faces' in the 'Mark Attendance' tab to update the face encodings.")
+
                 except Exception as e:
                     st.error(f"Error processing image: {str(e)}")
-        
-        else:  # Upload an image
-            uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+
+        else:
+            uploaded_file = st.file_uploader(
+                "Choose an image...", type=["jpg", "jpeg", "png"])
             if uploaded_file is not None and name and rollno:
                 try:
                     img = Image.open(uploaded_file)
-                    st.image(img, caption="Uploaded Face", use_container_width=True)
-                    
+                    st.image(img, caption="Uploaded Face",
+                             use_container_width=True)
+
                     if st.button("Save Face"):
                         filepath = save_new_face(img, name, rollno)
                         st.success(f"Face saved successfully as {filepath}")
-                        st.info("Please click 'Encode Faces' in the 'Mark Attendance' tab to update the face encodings.")
-                        
+                        st.info(
+                            "Please click 'Encode Faces' in the 'Mark Attendance' tab to update the face encodings.")
+
                 except Exception as e:
                     st.error(f"Error processing image: {str(e)}")
+
 
 if __name__ == "__main__":
     app()
