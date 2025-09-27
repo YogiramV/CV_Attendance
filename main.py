@@ -7,19 +7,13 @@ import numpy as np
 import pickle
 
 
-#Set Indian time
 timezone = pytz.timezone("Asia/Kolkata")
-
-
-
-# Initialize the database
 
 
 def initialize_database():
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
 
-    # Create table if it doesn't exist
     c.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
             name TEXT,
@@ -38,8 +32,6 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-# Log attendance into the database
-
 
 def log_attendance(name, rollno, period):
     if period is None:
@@ -49,30 +41,23 @@ def log_attendance(name, rollno, period):
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
 
-    # Check if the student is already logged for the current day and period
     c.execute("SELECT * FROM attendance WHERE name = ? AND rollno = ? AND timestamp >= datetime('now', 'localtime', 'start of day')", (name, rollno))
     existing_record = c.fetchone()
 
     if existing_record:
-        # If record exists, update attendance for the current period
         period_column = f"period_{period}"
         c.execute(f"UPDATE attendance SET {
                   period_column} = 1 WHERE name = ? AND rollno = ? AND timestamp >= datetime('now', 'localtime', 'start of day')", (name, rollno))
     else:
-        # If no record, create a new record
         period_column = f"period_{period}"
         c.execute(f"INSERT INTO attendance (name, rollno, {
                   period_column}) VALUES (?, ?, 1)", (name, rollno))
 
-    # Commit the changes
     conn.commit()
 
-    # Export the updated attendance to Excel
     export_to_excel()
 
     conn.close()
-
-# Export attendance to Excel
 
 
 def export_to_excel():
@@ -82,15 +67,13 @@ def export_to_excel():
         df = pd.read_sql_query("SELECT * FROM attendance", conn)
         conn.close()
 
-        if not df.empty:  # Check if DataFrame is not empty
+        if not df.empty:
             df.to_excel('attendance_data.xlsx', index=False)
             print("Attendance exported to attendance_data.xlsx successfully.")
         else:
             print("No attendance records to export.")
     except Exception as e:
         print("Error while exporting to Excel:", str(e))
-
-# Load the face encodings from the pickle file
 
 
 def load_encodings():
@@ -99,19 +82,16 @@ def load_encodings():
             data = pickle.load(f)
         known_face_encodings = data['encodings']
         known_face_rollnos = data['rollnos']
-        known_face_names = data['names']  # Add names list to pickle
+        known_face_names = data['names']
         return known_face_encodings, known_face_rollnos, known_face_names
     except Exception as e:
         print("Error loading encodings:", str(e))
         return [], [], []
 
-# Scan the captured photo for face recognition
-
 
 def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollnos, known_face_names):
     image = face_recognition.load_image_file(image_path)
 
-    # Find face encodings in the image
     face_locations = face_recognition.face_locations(image)
     face_encodings_in_image = face_recognition.face_encodings(
         image, face_locations)
@@ -125,21 +105,18 @@ def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollno
         face_distances = face_recognition.face_distance(
             known_face_encodings, face_encoding)
 
-        if len(face_distances) == 0:  # No faces found, skip processing
+        if len(face_distances) == 0:
             return "No valid face encodings found."
 
         best_match_index = np.argmin(face_distances)
 
         if matches[best_match_index]:
-            # Get the recognized roll number
             recognized_rollno = known_face_rollnos[best_match_index]
-            # Get the recognized name
             recognized_name = known_face_names[best_match_index]
             confidence = round(
                 (1.0 - face_distances[best_match_index]) * 100, 2)
 
             if recognized_rollno == rollno_input:
-                # Log attendance if roll number matches
                 current_period = get_current_period()
                 if current_period is None:
                     return "Attendance cannot be marked as it's outside school hours."
@@ -152,8 +129,6 @@ def scan_photo(image_path, rollno_input, known_face_encodings, known_face_rollno
 
         else:
             return "No known face recognized."
-
-# Get the current period based on the time of day
 
 
 def get_current_period():
@@ -174,4 +149,4 @@ def get_current_period():
         return 7
     elif 15 <= hour < 17:
         return 8
-    return None  # Outside school hours
+    return None
